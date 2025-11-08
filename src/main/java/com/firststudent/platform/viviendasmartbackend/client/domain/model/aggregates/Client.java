@@ -1,0 +1,98 @@
+package com.firststudent.platform.viviendasmartbackend.client.domain.model.aggregates;
+
+import java.math.BigDecimal;
+
+import com.firststudent.platform.viviendasmartbackend.client.domain.model.valueobjects.MaritalStatus;
+import com.firststudent.platform.viviendasmartbackend.shared.domain.model.aggregates.AuditableAbstractAggregateRoot;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+import lombok.Getter;
+
+/**
+ * Agregado Cliente
+ * Representa la información del cliente en el sistema.
+ * Mantiene una referencia por ID al User (IAM) para mantener la separación de bounded contexts.
+ */
+@Getter
+@Entity
+public class Client extends AuditableAbstractAggregateRoot<Client> {
+
+    @NotBlank
+    @Size(min = 8, max = 8)
+    @Column(nullable = false, unique = true, length = 8)
+    private String dni;
+
+    @NotNull
+    @DecimalMin(value = "0.0", inclusive = false)
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal monthlyIncome;
+
+    @NotBlank
+    @Size(max = 255)
+    @Column(nullable = false, length = 255)
+    private String address;
+
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private MaritalStatus maritalStatus;
+
+    @NotBlank
+    @Size(min = 10, max = 15)
+    @Column(nullable = false, length = 15)
+    private String phoneNumber;
+
+    // Referencia al User por ID para mantener la separación de bounded contexts
+    @NotNull
+    @Column(nullable = false, unique = true)
+    private Long userId;
+
+    protected Client() {
+    }
+
+    /**
+     * Constructor para crear un nuevo cliente
+     * @param dni el DNI del cliente (8 caracteres)
+     * @param monthlyIncome el ingreso mensual
+     * @param address la dirección
+     * @param maritalStatus el estado civil
+     * @param phoneNumber el número de teléfono
+     * @param userId el ID del usuario asociado (del bounded context IAM)
+     */
+    public Client(String dni, BigDecimal monthlyIncome, String address, 
+                  MaritalStatus maritalStatus, String phoneNumber, Long userId) {
+        this.dni = dni;
+        this.monthlyIncome = monthlyIncome;
+        this.address = address;
+        this.maritalStatus = maritalStatus;
+        this.phoneNumber = phoneNumber;
+        this.userId = userId;
+    }
+
+    /**
+     * Actualiza los detalles del cliente
+     */
+    public void updateDetails(BigDecimal monthlyIncome, String address, 
+                             MaritalStatus maritalStatus, String phoneNumber) {
+        if (monthlyIncome != null && monthlyIncome.compareTo(BigDecimal.ZERO) > 0) {
+            this.monthlyIncome = monthlyIncome;
+        }
+        if (address != null && !address.isBlank()) {
+            this.address = address;
+        }
+        if (maritalStatus != null) {
+            this.maritalStatus = maritalStatus;
+        }
+        if (phoneNumber != null && !phoneNumber.isBlank()) {
+            this.phoneNumber = phoneNumber;
+        }
+    }
+}
+
