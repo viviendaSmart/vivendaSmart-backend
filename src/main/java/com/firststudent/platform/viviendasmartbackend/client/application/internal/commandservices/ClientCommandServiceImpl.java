@@ -22,18 +22,19 @@ public class ClientCommandServiceImpl implements ClientCommandService {
 
     @Override
     @Transactional
-    public Client create(String dni, BigDecimal monthlyIncome, String address, 
+    public Client create(String dni, BigDecimal monthlyIncome, String ocupation, String name, String surname,
+                         String address,  String business, String earningtype, Boolean credithistory, Boolean support,
                          MaritalStatus maritalStatus, String phoneNumber, Long userId) {
-        Client client = new Client(dni, monthlyIncome, address, maritalStatus, phoneNumber, userId);
+        Client client = new Client(dni, monthlyIncome, ocupation, name, surname, address, business, earningtype, credithistory, support, maritalStatus, phoneNumber, userId);
         return clientRepository.save(client);
     }
 
     @Override
     @Transactional
-    public Optional<Client> update(Long clientId, BigDecimal monthlyIncome, String address, 
-                                   MaritalStatus maritalStatus, String phoneNumber) {
+    public Optional<Client> update(Long clientId, BigDecimal monthlyIncome, String ocupation,  String name, String surname, String address,
+                                   String business, String earningtype, Boolean credithistory, Boolean support, MaritalStatus maritalStatus, String phoneNumber) {
         return clientRepository.findById(clientId).map(existing -> {
-            existing.updateDetails(monthlyIncome, address, maritalStatus, phoneNumber);
+            existing.updateDetails(monthlyIncome, ocupation, name, surname, address, business,earningtype,credithistory,support,maritalStatus, phoneNumber);
             return clientRepository.save(existing);
         });
     }

@@ -34,7 +34,7 @@ public class ClientQueryServiceImpl implements ClientQueryService {
     }
 
     @Override
-    public Optional<Client> getByUserId(Long userId) {
+    public List<Client> getByUserId(Long userId) {
         return clientRepository.findByUserId(userId);
     }
 }

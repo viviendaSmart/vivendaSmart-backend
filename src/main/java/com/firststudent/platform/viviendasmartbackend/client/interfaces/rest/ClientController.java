@@ -40,8 +40,15 @@ public class ClientController {
     public ResponseEntity<ClientResource> create(@RequestBody CreateClientResource resource) {
         Client created = commandService.create(
             resource.dni(), 
-            resource.monthlyIncome(), 
-            resource.address(), 
+            resource.monthlyIncome(),
+            resource.ocupation(),
+            resource.name(),
+            resource.surname(),
+            resource.address(),
+            resource.business(),
+            resource.earningtype(),
+            resource.credithistory(),
+            resource.support(),
             resource.maritalStatus(), 
             resource.phoneNumber(), 
             resource.userId()
@@ -70,16 +77,18 @@ public class ClientController {
     }
 
     @GetMapping("/by-user-id")
-    public ResponseEntity<ClientResource> getByUserId(@RequestParam Long userId) {
-        return queryService.getByUserId(userId)
-                .map(entity -> ResponseEntity.ok(toResourceFromEntity(entity)))
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<List<ClientResource>> getByUserId(@RequestParam Long userId) {
+        List<Client> clients = queryService.getByUserId(userId);
+        List<ClientResource> clientResources = clients.stream()
+                .map(client -> toResourceFromEntity(client))
+                .toList();
+        return ResponseEntity.ok(clientResources);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ClientResource> update(@PathVariable Long id, @RequestBody CreateClientResource resource) {
-        return commandService.update(id, resource.monthlyIncome(), resource.address(), 
-                                     resource.maritalStatus(), resource.phoneNumber())
+        return commandService.update(id, resource.monthlyIncome(), resource.ocupation(), resource.name(),
+                        resource.surname(), resource.address(), resource.business(), resource.earningtype(), resource.credithistory(), resource.support(), resource.maritalStatus(), resource.phoneNumber())
                 .map(entity -> ResponseEntity.ok(toResourceFromEntity(entity)))
                 .orElse(ResponseEntity.notFound().build());
     }

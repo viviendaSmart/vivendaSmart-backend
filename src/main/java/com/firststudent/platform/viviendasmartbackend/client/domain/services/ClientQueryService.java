@@ -24,6 +24,6 @@ public interface ClientQueryService {
     /**
      * Obtiene un cliente por el ID del usuario asociado
      */
-    Optional<Client> getByUserId(Long userId);
+    List<Client> getByUserId(Long userId);
 }
 

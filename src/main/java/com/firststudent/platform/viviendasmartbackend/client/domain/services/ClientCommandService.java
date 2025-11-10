@@ -10,14 +10,14 @@ public interface ClientCommandService {
     /**
      * Crea un nuevo cliente
      */
-    Client create(String dni, BigDecimal monthlyIncome, String address, 
-                  MaritalStatus maritalStatus, String phoneNumber, Long userId);
+    Client create(String dni, BigDecimal monthlyIncome, String ocupation, String name, String surname, String address,
+                  String business, String earningtype, Boolean credithistory, Boolean support, MaritalStatus maritalStatus, String phoneNumber, Long userId);
     
     /**
      * Actualiza un cliente existente
      */
-    Optional<Client> update(Long clientId, BigDecimal monthlyIncome, String address, 
-                            MaritalStatus maritalStatus, String phoneNumber);
+    Optional<Client> update(Long clientId, BigDecimal monthlyIncome, String ocupation, String name, String surname,
+                            String address, String business, String earningtype, Boolean credithistory, Boolean support, MaritalStatus maritalStatus, String phoneNumber);
     
     /**
      * Elimina un cliente

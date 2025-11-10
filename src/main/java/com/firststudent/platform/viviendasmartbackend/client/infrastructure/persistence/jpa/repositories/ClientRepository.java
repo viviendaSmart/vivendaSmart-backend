@@ -1,5 +1,6 @@
 package com.firststudent.platform.viviendasmartbackend.client.infrastructure.persistence.jpa.repositories;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -8,6 +9,6 @@ import com.firststudent.platform.viviendasmartbackend.client.domain.model.aggreg
 
 public interface ClientRepository extends JpaRepository<Client, Long> {
     Optional<Client> findByDni(String dni);
-    Optional<Client> findByUserId(Long userId);
+    List<Client> findByUserId(Long userId);
 }
 

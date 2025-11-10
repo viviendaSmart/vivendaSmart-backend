@@ -5,6 +5,8 @@ package com.firststudent.platform.viviendasmartbackend.client.domain.model.value
  */
 public enum MaritalStatus {
     SOLTERO,
-    CASADO
+    CASADO,
+    VIUDO,
+    DIVORCIADO
 }
 
