@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.firststudent.platform.viviendasmartbackend.property.domain.model.aggregates.Property;
 
 public interface PropertyRepository extends JpaRepository<Property, Long> {
-    List<Property> findByOwnerId(Long ownerId);
+    List<Property> findByOwnerId(Long udf);
 }
 
 

@@ -18,6 +18,7 @@ public class CreditCommandServiceImpl implements CreditCommandService {
     private final CreditRepository creditRepository;
 
     public CreditCommandServiceImpl(CreditRepository creditRepository) {
+
         this.creditRepository = creditRepository;
     }
 
