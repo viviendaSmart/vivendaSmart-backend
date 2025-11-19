@@ -37,7 +37,7 @@ public class BonusController {
 
     @PostMapping
     public ResponseEntity<BonusResource> create(@RequestBody CreateBonusResource resource) {
-        Bonus created = commandService.create(resource.name(), resource.amount(), resource.requirements());
+        Bonus created = commandService.create(resource.bonusType(), resource.amount(), resource.creditId());
         return ResponseEntity.ok(toResourceFromEntity(created));
     }
 
@@ -56,7 +56,7 @@ public class BonusController {
 
     @PutMapping("/{id}")
     public ResponseEntity<BonusResource> update(@PathVariable Long id, @RequestBody CreateBonusResource resource) {
-        return commandService.update(id, resource.name(), resource.amount(), resource.requirements())
+        return commandService.update(id, resource.bonusType(), resource.amount())
                 .map(entity -> ResponseEntity.ok(toResourceFromEntity(entity)))
                 .orElse(ResponseEntity.notFound().build());
     }

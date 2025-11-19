@@ -10,9 +10,9 @@ public class BonusResourceFromEntityAssembler {
     public static BonusResource toResourceFromEntity(Bonus entity) {
         return new BonusResource(
             entity.getId(),
-            entity.getName(),
+            entity.getBonusType(),
             entity.getAmount(),
-            entity.getRequirements(),
+            entity.getCreditId(),
             entity.getCreatedAt(),
             entity.getUpdatedAt()
         );

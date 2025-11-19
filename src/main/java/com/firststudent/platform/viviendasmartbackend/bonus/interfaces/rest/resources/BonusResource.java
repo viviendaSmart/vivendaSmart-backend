@@ -1,5 +1,7 @@
 package com.firststudent.platform.viviendasmartbackend.bonus.interfaces.rest.resources;
 
+import com.firststudent.platform.viviendasmartbackend.bonus.domain.model.valueobjects.BonusType;
+
 import java.math.BigDecimal;
 import java.util.Date;
 
@@ -8,9 +10,9 @@ import java.util.Date;
  */
 public record BonusResource(
     Long id,
-    String name,
+    BonusType bonusType,
     BigDecimal amount,
-    String requirements,
+    Long creditId,
     Date createdAt,
     Date updatedAt
 ) {}

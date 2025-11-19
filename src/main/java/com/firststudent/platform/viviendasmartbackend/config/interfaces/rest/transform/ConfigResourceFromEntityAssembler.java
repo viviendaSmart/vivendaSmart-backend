@@ -11,7 +11,7 @@ public class ConfigResourceFromEntityAssembler {
                 entity.getRate(),
                 entity.getRateType(),
                 entity.getExchange(),
-                entity.getTermType(),
+                entity.getGraceType(),
                 entity.getTerm(),
                 entity.getUserId(),
                 entity.getCreatedAt(),

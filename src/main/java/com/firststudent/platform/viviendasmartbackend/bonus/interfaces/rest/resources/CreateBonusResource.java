@@ -1,13 +1,15 @@
 package com.firststudent.platform.viviendasmartbackend.bonus.interfaces.rest.resources;
 
+import com.firststudent.platform.viviendasmartbackend.bonus.domain.model.valueobjects.BonusType;
+
 import java.math.BigDecimal;
 
 /**
  * Recurso para crear un nuevo bono
  */
 public record CreateBonusResource(
-    String name,
+    BonusType bonusType,
     BigDecimal amount,
-    String requirements
+    Long creditId
 ) {}
 

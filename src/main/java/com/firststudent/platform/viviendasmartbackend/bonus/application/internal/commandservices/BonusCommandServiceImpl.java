@@ -3,6 +3,7 @@ package com.firststudent.platform.viviendasmartbackend.bonus.application.interna
 import java.math.BigDecimal;
 import java.util.Optional;
 
+import com.firststudent.platform.viviendasmartbackend.bonus.domain.model.valueobjects.BonusType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,16 +22,16 @@ public class BonusCommandServiceImpl implements BonusCommandService {
 
     @Override
     @Transactional
-    public Bonus create(String name, BigDecimal amount, String requirements) {
-        Bonus bonus = new Bonus(name, amount, requirements);
+    public Bonus create(BonusType bonusType, BigDecimal amount, Long creditId) {
+        Bonus bonus = new Bonus(bonusType, amount, creditId);
         return bonusRepository.save(bonus);
     }
 
     @Override
     @Transactional
-    public Optional<Bonus> update(Long bonusId, String name, BigDecimal amount, String requirements) {
+    public Optional<Bonus> update(Long bonusId, BonusType bonusType, BigDecimal amount) {
         return bonusRepository.findById(bonusId).map(existing -> {
-            existing.updateDetails(name, amount, requirements);
+            existing.updateDetails(bonusType, amount);
             return bonusRepository.save(existing);
         });
     }

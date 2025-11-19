@@ -2,16 +2,15 @@ package com.firststudent.platform.viviendasmartbackend.config.interfaces.rest.re
 
 import com.firststudent.platform.viviendasmartbackend.config.domain.model.valueobjects.Exchange;
 import com.firststudent.platform.viviendasmartbackend.config.domain.model.valueobjects.RateType;
-import com.firststudent.platform.viviendasmartbackend.config.domain.model.valueobjects.TermType;
+import com.firststudent.platform.viviendasmartbackend.config.domain.model.valueobjects.GraceType;
 
 import java.math.BigDecimal;
-import java.util.Date;
 
 public record CreateConfigResource(
         BigDecimal rate,
         RateType rateType,
         Exchange exchange,
-        TermType termtype,
+        GraceType termtype,
         Integer term,
         Long userId
 ) {
