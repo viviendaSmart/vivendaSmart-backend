@@ -39,20 +39,16 @@ public class SimulationServiceImpl implements SimulationService {
         Client client = getClient(request);
         BigDecimal monthlyIncome = nvl(client.getMonthlyIncome());
 
-        // PASO 1.2 (opcional): aquí podrías convertir a dólares si quisieras trabajar todo en USD.
-        // Por simplicidad, mantenemos todos los cálculos en soles (PEN).
-        // TODO: aplicar conversión de moneda a nivel de resultado si exchange = "DOLARES"
-
         // PASO 2: Calcular monto del bono según reglas (AVN, CSP, MV)
         BigDecimal bonusAmount = computeBonusAmount(
                 monthlyIncome,
                 propertySize,
                 price,
-                request.getBonusType() // asumo que agregaste este campo: "AVN", "CSP", "MV" o null
+                request.getBonusType()
         );
 
-        // PASO 3: Calcular monto del préstamo usando porcentaje de cuota inicial y bono
-        BigDecimal loanAmount = computeLoanAmountFromPercentAndBonus(
+        // PASO 3: Saldo a financiar del activo (Precio - Inicial - Bono)
+        BigDecimal financedBalance = computeSaldoAFinanciar(
                 price,
                 request.getInitialPayment(),
                 bonusAmount
@@ -61,22 +57,42 @@ public class SimulationServiceImpl implements SimulationService {
         // PASO 4: Validar y obtener plazo (n)
         int n = getValidatedTermMonths(request);
 
-        // PASO 5: Calcular tasa mensual (a partir de request.getRate y request.getRateType)
+        SimulationResult result = new SimulationResult();
+        result.setFinancedBalance(financedBalance);
+        result.setBonusAmount(bonusAmount);
+        result.setTermMonths(n);
+        // Asumimos frecuencia mensual
+        result.setInstallmentsPerYear(12);
+
+        // PASO 5: Calcular totales de costos (iniciales + periódicos configurados)
+        computeCostTotals(request, result, n);
+
+        BigDecimal totalInitialCosts = nvl(result.getTotalInitialCosts());
+
+        // PASO 6: Monto del préstamo = saldo a financiar + costos iniciales
+        BigDecimal loanAmount = financedBalance.add(totalInitialCosts);
+        if (loanAmount.compareTo(BigDecimal.ZERO) < 0) {
+            loanAmount = BigDecimal.ZERO;
+        }
+        result.setLoanAmount(loanAmount);
+
+        // PASO 7: Tasa efectiva mensual del préstamo
         BigDecimal rate = nvl(request.getRate());
         BigDecimal monthlyRate = computeMonthlyRate(rate, request.getRateType());
-
-        SimulationResult result = new SimulationResult();
-        result.setLoanAmount(loanAmount);
-        result.setTermMonths(n);
         result.setMonthlyRate(monthlyRate);
+
+        // PASO 7.1: Tasa de descuento mensual (COK período)
+        BigDecimal cokRate = nvl(request.getCokRate());
+        BigDecimal discountRatePeriod = computeMonthlyRate(cokRate, request.getCokRateType());
+        result.setDiscountRatePeriod(discountRatePeriod);
 
         // Si no hay préstamo, devolvemos resultado mínimo
         if (loanAmount.compareTo(BigDecimal.ZERO) == 0) {
             result.setMonthlyInstallment(BigDecimal.ZERO);
-            result.setTotalInitialCosts(BigDecimal.ZERO);
-            result.setTotalPeriodicCosts(BigDecimal.ZERO);
             result.setTotalInterest(BigDecimal.ZERO);
             result.setTotalAmountPaid(BigDecimal.ZERO);
+            result.setTotalPrincipalAmortization(BigDecimal.ZERO);
+            result.setTotalPeriodicCosts(BigDecimal.ZERO);
             result.setTotalCost(BigDecimal.ZERO);
             result.setVan(BigDecimal.ZERO);
             result.setTir(BigDecimal.ZERO);
@@ -84,17 +100,11 @@ public class SimulationServiceImpl implements SimulationService {
             return result;
         }
 
-        // PASO 6: Calcular totales de costos (iniciales configurados + periódicos configurados)
-        computeCostTotals(request, result);
-
-        // PASO 7: Construir tabla de amortización y totales de intereses / monto pagado / costos
+        // PASO 8: Construir tabla de amortización y totales
         buildScheduleAndTotals(request, result, loanAmount, monthlyRate, n);
 
-        // PASO 8: VAN, TIR y TCEA a partir de los flujos de caja
-        computeVanTirTcea(result, loanAmount, monthlyRate);
-
-        // PASO 9 (opcional): si exchange = "DOLARES", aquí podrías convertir todo el resultado a USD
-        // usando un tipo de cambio desde Config u otra fuente.
+        // PASO 9: VAN, TIR y TCEA a partir de los flujos de caja usando COK mensual
+        computeVanTirTcea(result, loanAmount, discountRatePeriod);
 
         return result;
     }
@@ -113,27 +123,6 @@ public class SimulationServiceImpl implements SimulationService {
 
     // =================== PASO 2: BONO ===================
 
-    /**
-     * Lógica de bonos:
-     *
-     * AVN:
-     *  - monthlyIncome < 3715
-     *  - propertySize <= 140
-     *  - Si size <= 50     -> 46,545
-     *  - Si size > 50:
-     *     - price <= 60,000 -> 56,710
-     *     - price <= 70,000 -> 51,895
-     *
-     * CSP:
-     *  - monthlyIncome < 2706
-     *  - amount = 32,100
-     *
-     * MV:
-     *  - monthlyIncome < 2706
-     *  - amount = 12,305
-     *
-     * Si no cumple condiciones o no se elige tipo, el bono es 0.
-     */
     private BigDecimal computeBonusAmount(BigDecimal monthlyIncome,
                                           BigDecimal propertySize,
                                           BigDecimal propertyPrice,
@@ -148,22 +137,25 @@ public class SimulationServiceImpl implements SimulationService {
         BigDecimal sizeLimitSmall = new BigDecimal("50");
         BigDecimal priceLimit1 = new BigDecimal("60000");
         BigDecimal priceLimit2 = new BigDecimal("70000");
+        BigDecimal priceLimit3 = new BigDecimal("109000");
+        BigDecimal priceLimit4 = new BigDecimal("136000");
 
         switch (type) {
             case "AVN":
-                // ingresos < 3715 y size <= 140
                 if (monthlyIncome.compareTo(incomeAVNMax) >= 0) return BigDecimal.ZERO;
                 if (propertySize.compareTo(maxSizeAVN) > 0) return BigDecimal.ZERO;
 
-                // Size <= 50
                 if (propertySize.compareTo(sizeLimitSmall) <= 0) {
                     return new BigDecimal("46545");
                 } else {
-                    // size > 50, depende del precio
                     if (propertyPrice.compareTo(priceLimit1) <= 0) {
                         return new BigDecimal("56710");
                     } else if (propertyPrice.compareTo(priceLimit2) <= 0) {
                         return new BigDecimal("51895");
+                    } else if (propertyPrice.compareTo(priceLimit3) <= 0) {
+                        return new BigDecimal("50825");
+                    } else if (propertyPrice.compareTo(priceLimit4) <= 0) {
+                        return new BigDecimal("46545");
                     } else {
                         return BigDecimal.ZERO;
                     }
@@ -192,11 +184,11 @@ public class SimulationServiceImpl implements SimulationService {
 
     /**
      * initialPayment llega como porcentaje (ej. 10 = 10%)
-     * loanAmount = price - inicial - bono
+     * Saldo a financiar = price - inicial - bono
      */
-    private BigDecimal computeLoanAmountFromPercentAndBonus(BigDecimal price,
-                                                            BigDecimal initialPercent,
-                                                            BigDecimal bonusAmount) {
+    private BigDecimal computeSaldoAFinanciar(BigDecimal price,
+                                              BigDecimal initialPercent,
+                                              BigDecimal bonusAmount) {
         BigDecimal percent = nvl(initialPercent); // 10, 20, etc.
         BigDecimal hundred = BigDecimal.valueOf(100);
 
@@ -205,14 +197,14 @@ public class SimulationServiceImpl implements SimulationService {
                 .multiply(percent)
                 .divide(hundred, 2, RoundingMode.HALF_UP);
 
-        BigDecimal loanAmount = price
+        BigDecimal saldoAFinanciar = price
                 .subtract(initialAmount)
                 .subtract(nvl(bonusAmount));
 
-        if (loanAmount.compareTo(BigDecimal.ZERO) < 0) {
-            loanAmount = BigDecimal.ZERO;
+        if (saldoAFinanciar.compareTo(BigDecimal.ZERO) < 0) {
+            saldoAFinanciar = BigDecimal.ZERO;
         }
-        return loanAmount;
+        return saldoAFinanciar;
     }
 
     private int getValidatedTermMonths(SimulationRequest request) {
@@ -305,9 +297,22 @@ public class SimulationServiceImpl implements SimulationService {
 
     // =================== PASO 6 ===================
 
-    private void computeCostTotals(SimulationRequest request, SimulationResult result) {
+    /**
+     * Suma de costos iniciales y periódicos según request.
+     * Para los totales desagregados (seguros, comisiones, portes) se multiplica
+     * amount por el número de periodos en que aplican.
+     */
+    private void computeCostTotals(SimulationRequest request,
+                                   SimulationResult result,
+                                   int totalPeriods) {
+
         BigDecimal totalInitialCosts = BigDecimal.ZERO;
         BigDecimal totalPeriodicConfig = BigDecimal.ZERO;
+
+        BigDecimal totalLifeInsurance = BigDecimal.ZERO;
+        BigDecimal totalRiskInsurance = BigDecimal.ZERO;
+        BigDecimal totalPeriodicCommissions = BigDecimal.ZERO;
+        BigDecimal totalPortes = BigDecimal.ZERO;
 
         if (request.getCosts() != null) {
             for (SimulationRequest.CostItem item : request.getCosts()) {
@@ -317,13 +322,48 @@ public class SimulationServiceImpl implements SimulationService {
                     totalInitialCosts = totalInitialCosts.add(item.getAmount());
                 } else if (item.getType() == CostType.PERIODIC) {
                     totalPeriodicConfig = totalPeriodicConfig.add(item.getAmount());
+
+                    int occurrences = (item.getPeriodNumber() == null) ? totalPeriods : 1;
+                    BigDecimal totalForItem = item.getAmount()
+                            .multiply(BigDecimal.valueOf(occurrences));
+
+                    String code = item.getCode() != null
+                            ? item.getCode().trim().toUpperCase()
+                            : "";
+
+                    switch (code) {
+                        case "DESGRAVAMEN":
+                        case "SEGURO_DESGRAVAMEN":
+                            totalLifeInsurance = totalLifeInsurance.add(totalForItem);
+                            break;
+                        case "RIESGO":
+                        case "SEGURO_RIESGO":
+                            totalRiskInsurance = totalRiskInsurance.add(totalForItem);
+                            break;
+                        case "COMISION":
+                        case "COMISION_PERIODICA":
+                            totalPeriodicCommissions = totalPeriodicCommissions.add(totalForItem);
+                            break;
+                        case "PORTES":
+                        case "GASTOS_ADMIN":
+                            totalPortes = totalPortes.add(totalForItem);
+                            break;
+                        default:
+                            // otros costos periódicos genéricos
+                            break;
+                    }
                 }
             }
         }
 
         result.setTotalInitialCosts(totalInitialCosts.setScale(2, RoundingMode.HALF_UP));
-        // este es el total de montos configurados, luego en PASO 7 se reemplaza por lo realmente pagado
+        // total periódico "configurado" (por periodo); luego se reemplaza por lo realmente pagado
         result.setTotalPeriodicCosts(totalPeriodicConfig.setScale(2, RoundingMode.HALF_UP));
+
+        result.setTotalLifeInsurance(totalLifeInsurance.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalRiskInsurance(totalRiskInsurance.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalPeriodicCommissions(totalPeriodicCommissions.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalPortes(totalPortes.setScale(2, RoundingMode.HALF_UP));
     }
 
     // =================== PASO 7 ===================
@@ -346,6 +386,7 @@ public class SimulationServiceImpl implements SimulationService {
         BigDecimal totalInterest = BigDecimal.ZERO;
         BigDecimal totalPaidInstallments = BigDecimal.ZERO;
         BigDecimal totalPeriodicCostsReal = BigDecimal.ZERO;
+        BigDecimal totalPrincipalAmortization = BigDecimal.ZERO;
 
         if ("NINGUNA".equals(graceType) || graceMonths <= 0) {
             // Sin gracia: método francés normal
@@ -374,16 +415,17 @@ public class SimulationServiceImpl implements SimulationService {
                     endingBalance = BigDecimal.ZERO;
                 }
 
+                totalInterest = totalInterest.add(interest);
+                totalPrincipalAmortization = totalPrincipalAmortization.add(principal);
+                totalPaidInstallments = totalPaidInstallments.add(monthlyInstallment);
+                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
+
                 row.setInstallment(monthlyInstallment.setScale(2, RoundingMode.HALF_UP));
                 row.setInterest(interest);
-                row.setPrincipal(principal);
+                row.setPrincipal(principal.setScale(2, RoundingMode.HALF_UP));
                 row.setPeriodicCosts(periodCosts.setScale(2, RoundingMode.HALF_UP));
                 row.setTotalPeriodCost(totalPeriodCost.setScale(2, RoundingMode.HALF_UP));
                 row.setEndingBalance(endingBalance.setScale(2, RoundingMode.HALF_UP));
-
-                totalInterest = totalInterest.add(interest);
-                totalPaidInstallments = totalPaidInstallments.add(monthlyInstallment);
-                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
 
                 balance = endingBalance;
                 schedule.add(row);
@@ -431,16 +473,17 @@ public class SimulationServiceImpl implements SimulationService {
                     endingBalance = BigDecimal.ZERO;
                 }
 
+                totalInterest = totalInterest.add(interest);
+                totalPrincipalAmortization = totalPrincipalAmortization.add(principal);
+                totalPaidInstallments = totalPaidInstallments.add(installment);
+                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
+
                 row.setInstallment(installment.setScale(2, RoundingMode.HALF_UP));
                 row.setInterest(interest);
                 row.setPrincipal(principal.setScale(2, RoundingMode.HALF_UP));
                 row.setPeriodicCosts(periodCosts.setScale(2, RoundingMode.HALF_UP));
                 row.setTotalPeriodCost(totalPeriodCost.setScale(2, RoundingMode.HALF_UP));
                 row.setEndingBalance(endingBalance.setScale(2, RoundingMode.HALF_UP));
-
-                totalInterest = totalInterest.add(interest);
-                totalPaidInstallments = totalPaidInstallments.add(installment);
-                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
 
                 balance = endingBalance;
                 schedule.add(row);
@@ -470,16 +513,16 @@ public class SimulationServiceImpl implements SimulationService {
                 // Intereses se capitalizan
                 BigDecimal endingBalance = balance.add(interest);
 
+                totalInterest = totalInterest.add(interest);
+                // principal = 0
+                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
+
                 row.setInstallment(installment.setScale(2, RoundingMode.HALF_UP));
                 row.setInterest(interest);
                 row.setPrincipal(principal.setScale(2, RoundingMode.HALF_UP));
                 row.setPeriodicCosts(periodCosts.setScale(2, RoundingMode.HALF_UP));
                 row.setTotalPeriodCost(totalPeriodCost.setScale(2, RoundingMode.HALF_UP));
                 row.setEndingBalance(endingBalance.setScale(2, RoundingMode.HALF_UP));
-
-                totalInterest = totalInterest.add(interest);
-                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
-                // totalPaidInstallments no aumenta porque installment = 0
 
                 balance = endingBalance;
                 schedule.add(row);
@@ -511,6 +554,11 @@ public class SimulationServiceImpl implements SimulationService {
                     endingBalance = BigDecimal.ZERO;
                 }
 
+                totalInterest = totalInterest.add(interest);
+                totalPrincipalAmortization = totalPrincipalAmortization.add(principal);
+                totalPaidInstallments = totalPaidInstallments.add(monthlyInstallment);
+                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
+
                 row.setInstallment(monthlyInstallment.setScale(2, RoundingMode.HALF_UP));
                 row.setInterest(interest);
                 row.setPrincipal(principal.setScale(2, RoundingMode.HALF_UP));
@@ -518,15 +566,11 @@ public class SimulationServiceImpl implements SimulationService {
                 row.setTotalPeriodCost(totalPeriodCost.setScale(2, RoundingMode.HALF_UP));
                 row.setEndingBalance(endingBalance.setScale(2, RoundingMode.HALF_UP));
 
-                totalInterest = totalInterest.add(interest);
-                totalPaidInstallments = totalPaidInstallments.add(monthlyInstallment);
-                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
-
                 balance = endingBalance;
                 schedule.add(row);
             }
         } else {
-            // Cualquier cosa rara, lo tratamos como sin gracia (francés normal)
+            // Cualquier otra cosa, lo tratamos como sin gracia (francés normal)
             BigDecimal monthlyInstallment = computeInstallment(loanAmount, monthlyRate, n);
             result.setMonthlyInstallment(monthlyInstallment);
 
@@ -552,16 +596,17 @@ public class SimulationServiceImpl implements SimulationService {
                     endingBalance = BigDecimal.ZERO;
                 }
 
+                totalInterest = totalInterest.add(interest);
+                totalPrincipalAmortization = totalPrincipalAmortization.add(principal);
+                totalPaidInstallments = totalPaidInstallments.add(monthlyInstallment);
+                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
+
                 row.setInstallment(monthlyInstallment.setScale(2, RoundingMode.HALF_UP));
                 row.setInterest(interest);
-                row.setPrincipal(principal);
+                row.setPrincipal(principal.setScale(2, RoundingMode.HALF_UP));
                 row.setPeriodicCosts(periodCosts.setScale(2, RoundingMode.HALF_UP));
                 row.setTotalPeriodCost(totalPeriodCost.setScale(2, RoundingMode.HALF_UP));
                 row.setEndingBalance(endingBalance.setScale(2, RoundingMode.HALF_UP));
-
-                totalInterest = totalInterest.add(interest);
-                totalPaidInstallments = totalPaidInstallments.add(monthlyInstallment);
-                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
 
                 balance = endingBalance;
                 schedule.add(row);
@@ -572,6 +617,7 @@ public class SimulationServiceImpl implements SimulationService {
         result.setTotalInterest(totalInterest.setScale(2, RoundingMode.HALF_UP));
         result.setTotalAmountPaid(totalPaidInstallments.setScale(2, RoundingMode.HALF_UP));
         result.setTotalPeriodicCosts(totalPeriodicCostsReal.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalPrincipalAmortization(totalPrincipalAmortization.setScale(2, RoundingMode.HALF_UP));
 
         BigDecimal totalInitialCosts = nvl(result.getTotalInitialCosts());
         BigDecimal totalCost = totalPaidInstallments
@@ -618,7 +664,9 @@ public class SimulationServiceImpl implements SimulationService {
 
     // =================== PASO 8: VAN / TIR / TCEA ===================
 
-    private void computeVanTirTcea(SimulationResult result, BigDecimal loanAmount, BigDecimal monthlyRate) {
+    private void computeVanTirTcea(SimulationResult result,
+                                   BigDecimal loanAmount,
+                                   BigDecimal discountRateMonthly) {
         List<SimulationResult.ScheduleItem> schedule = result.getSchedule();
         if (schedule == null || schedule.isEmpty()) {
             result.setVan(BigDecimal.ZERO);
@@ -641,8 +689,8 @@ public class SimulationServiceImpl implements SimulationService {
             cashFlows.add(cf);
         }
 
-        // VAN usando la tasa efectiva mensual (COK mensual)
-        BigDecimal van = computeNPV(monthlyRate, cashFlows);
+        // VAN usando la tasa efectiva mensual de descuento (COK mensual)
+        BigDecimal van = computeNPV(discountRateMonthly, cashFlows);
         result.setVan(van.setScale(2, RoundingMode.HALF_UP));
 
         // TIR (mensual) a partir de los mismos flujos
@@ -660,10 +708,6 @@ public class SimulationServiceImpl implements SimulationService {
         }
     }
 
-    /**
-     * VAN general: NPV con CF0 incluido (ya negativo) y tasa por periodo.
-     * Fórmula: VAN = Σ CF_t / (1 + r)^t   (t = 0..n)
-     */
     private BigDecimal computeNPV(BigDecimal discountRate, List<BigDecimal> cashFlows) {
         if (discountRate == null) discountRate = BigDecimal.ZERO;
         double r = discountRate.doubleValue();
@@ -676,9 +720,6 @@ public class SimulationServiceImpl implements SimulationService {
         return BigDecimal.valueOf(npv);
     }
 
-    /**
-     * TIR mensual por bisección: busca r tal que VAN(r) ≈ 0.
-     */
     private BigDecimal computeIRR(List<BigDecimal> cashFlows) {
         double[] flows = new double[cashFlows.size()];
         for (int i = 0; i < cashFlows.size(); i++) {
