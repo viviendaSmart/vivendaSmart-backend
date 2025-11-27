@@ -17,7 +17,8 @@ public class SimulationRequest {
 
     // Parámetros del crédito (derivados de config + lo que ajuste el usuario)
     private BigDecimal initialPayment;   // cuota inicial en %
-    private Integer termMonths;          // plazo de pago en meses
+    private Integer termYears;          // Numero de años
+    private Integer frequency;          //Frecuencia de pago
 
     // Tasa del préstamo
     private BigDecimal rate;             // valor de la tasa (ej. 0.095 para 9.5%)

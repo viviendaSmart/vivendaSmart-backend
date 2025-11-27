@@ -10,7 +10,7 @@ import java.util.List;
 @Setter
 public class SimulationResult {
 
-    // ====== Bloque: del financiamiento (profe) ======
+    // ====== Bloque: del financiamiento  ======
 
     // Saldo a financiar del activo = Precio - Precio*%Inicial - Valor BBP
     private BigDecimal financedBalance;
@@ -27,10 +27,10 @@ public class SimulationResult {
     // Cuota fija del método francés (cuando aplica)
     private BigDecimal monthlyInstallment;
 
-    // Nº total de cuotas (en la hoja del profe: N° Total de Cuotas)
-    private Integer termMonths;
+    // Nº total de cuotas
+    private Integer totalTerm;
 
-    // Nº de cuotas por año (en la hoja del profe: N° Cuotas por Año)
+    // Nº de cuotas por año
     private Integer installmentsPerYear;
 
 
@@ -90,13 +90,16 @@ public class SimulationResult {
     @Getter
     @Setter
     public static class ScheduleItem {
-        private Integer period;            // 1, 2, 3, ...
-        private BigDecimal beginningBalance;
-        private BigDecimal installment;    // cuota del periodo (solo préstamo)
-        private BigDecimal interest;       // parte de interés
-        private BigDecimal principal;      // parte de amortización
-        private BigDecimal periodicCosts;  // suma de costos periódicos del periodo
-        private BigDecimal totalPeriodCost;// cuota + costos periódicos
-        private BigDecimal endingBalance;
+        private Integer period;            // Nº
+        private String graceFlag;          // P.G. ("T", "P" o "")
+
+        private BigDecimal beginningBalance; // Saldo Inicial
+        private BigDecimal installment;      // Cuota
+        private BigDecimal interest;         // Interés
+        private BigDecimal principal;        // Amort.
+        private BigDecimal periodicCosts;    // (por ahora la suma de todos los costos)
+        private BigDecimal totalPeriodCost;  // Cuota + costos
+        private BigDecimal endingBalance;    // Saldo Final
+
     }
 }
