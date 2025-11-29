@@ -18,13 +18,28 @@ public class ScheduleGenerator {
             SimulationResult result,
             BigDecimal loanAmount,
             BigDecimal monthlyRate,
-            int n
+            int n,
+            String graceTypeRaw,   // <-- viene de Config
+            int graceMonthsRaw     // <-- viene de Config
     ) {
-        String graceType = request.getGraceType() != null
-                ? request.getGraceType().trim().toUpperCase()
+        // Normalizamos tipo de gracia y meses de gracia
+        String graceType = (graceTypeRaw != null)
+                ? graceTypeRaw.trim().toUpperCase()
                 : "NINGUNA";
 
-        int graceMonths = computeGraceMonths(request, n);
+        int graceMonths = graceMonthsRaw;
+        if (graceMonths < 0) graceMonths = 0;
+        if (graceMonths > n) graceMonths = n;
+
+        // Tasas por período para seguros (ya calculadas en SimulationServiceImpl)
+        BigDecimal lifeRate = nvl(result.getLifeInsuranceRatePeriod()); // TSD período (decimal)
+        BigDecimal riskRate = nvl(result.getRiskInsuranceRatePeriod()); // TSR período (decimal)
+
+        // Precio de la propiedad (debe venir en el SimulationResult)
+        BigDecimal propertyPrice = nvl(result.getPropertyPrice());
+
+        // Comisión periódica (% por período, en decimal)
+        BigDecimal commissionRate = getPeriodicCommissionRate(request);
 
         List<SimulationResult.ScheduleItem> schedule = new ArrayList<>();
         BigDecimal balance = loanAmount;
@@ -33,18 +48,30 @@ public class ScheduleGenerator {
         BigDecimal totalPeriodicCostsReal = BigDecimal.ZERO;
         BigDecimal totalPrincipalAmortization = BigDecimal.ZERO;
 
+        // Acumuladores desagregados
+        BigDecimal totalLifeInsurance = BigDecimal.ZERO;
+        BigDecimal totalRiskInsurance = BigDecimal.ZERO;
+        BigDecimal totalPeriodicCommissions = BigDecimal.ZERO;
+        BigDecimal totalPortes = BigDecimal.ZERO;
+
         // === FILA 0: desembolso ===
         SimulationResult.ScheduleItem row0 = new SimulationResult.ScheduleItem();
         row0.setPeriod(0);
-        row0.setGraceFlag(""); // en la fila 0 no hay P.G.
+        row0.setGraceFlag("");
         row0.setBeginningBalance(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         row0.setInterest(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         row0.setPrincipal(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         row0.setInstallment(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+
+        row0.setLifeInsurance(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        row0.setRiskInsurance(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        row0.setPeriodicCommission(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+
         row0.setPeriodicCosts(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
         row0.setTotalPeriodCost(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
-        // Saldo final después del desembolso = monto del préstamo
         row0.setEndingBalance(loanAmount.setScale(2, RoundingMode.HALF_UP));
+        row0.setCashFlow(loanAmount.setScale(2, RoundingMode.HALF_UP));
+
         schedule.add(row0);
 
         // ================== SIN GRACIA ==================
@@ -56,7 +83,7 @@ public class ScheduleGenerator {
             for (int period = 1; period <= n; period++) {
                 SimulationResult.ScheduleItem row = new SimulationResult.ScheduleItem();
                 row.setPeriod(period);
-                row.setGraceFlag(""); // sin periodo de gracia
+                row.setGraceFlag("");
                 row.setBeginningBalance(balance.setScale(2, RoundingMode.HALF_UP));
 
                 BigDecimal interest = balance.multiply(monthlyRate)
@@ -64,12 +91,23 @@ public class ScheduleGenerator {
                 BigDecimal principal = monthlyInstallment.subtract(interest)
                         .setScale(2, RoundingMode.HALF_UP);
 
-                BigDecimal periodCosts = computePeriodicCostsForPeriod(request, period);
-                BigDecimal totalPeriodCost = monthlyInstallment.add(periodCosts);
+                BigDecimal fixedPeriodicCosts = computePeriodicCostsForPeriod(request, period);
+
+                BigDecimal lifeIns = balance.multiply(lifeRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal riskIns = propertyPrice.multiply(riskRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal comm = balance.multiply(commissionRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+
+                BigDecimal totalPeriodCost = monthlyInstallment
+                        .add(fixedPeriodicCosts)
+                        .add(lifeIns)
+                        .add(riskIns)
+                        .add(comm);
 
                 BigDecimal endingBalance = balance.subtract(principal);
 
-                // Ajuste final por redondeo
                 if (period == n && endingBalance.compareTo(BigDecimal.ZERO) != 0) {
                     principal = balance;
                     interest = monthlyInstallment.subtract(principal)
@@ -80,14 +118,33 @@ public class ScheduleGenerator {
                 totalInterest = totalInterest.add(interest);
                 totalPrincipalAmortization = totalPrincipalAmortization.add(principal);
                 totalPaidInstallments = totalPaidInstallments.add(monthlyInstallment);
-                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
+
+                totalPeriodicCostsReal = totalPeriodicCostsReal
+                        .add(fixedPeriodicCosts)
+                        .add(lifeIns)
+                        .add(riskIns)
+                        .add(comm);
+
+                // desagregados
+                totalLifeInsurance = totalLifeInsurance.add(lifeIns);
+                totalRiskInsurance = totalRiskInsurance.add(riskIns);
+                totalPeriodicCommissions = totalPeriodicCommissions.add(comm);
+                totalPortes = totalPortes.add(fixedPeriodicCosts);
 
                 row.setInstallment(monthlyInstallment.setScale(2, RoundingMode.HALF_UP));
                 row.setInterest(interest);
                 row.setPrincipal(principal.setScale(2, RoundingMode.HALF_UP));
-                row.setPeriodicCosts(periodCosts.setScale(2, RoundingMode.HALF_UP));
+
+                row.setLifeInsurance(lifeIns);
+                row.setRiskInsurance(riskIns);
+                row.setPeriodicCommission(comm);
+
+                row.setPeriodicCosts(fixedPeriodicCosts.setScale(2, RoundingMode.HALF_UP));
                 row.setTotalPeriodCost(totalPeriodCost.setScale(2, RoundingMode.HALF_UP));
                 row.setEndingBalance(endingBalance.setScale(2, RoundingMode.HALF_UP));
+
+                BigDecimal cashFlow = totalPeriodCost.negate();
+                row.setCashFlow(cashFlow.setScale(2, RoundingMode.HALF_UP));
 
                 balance = endingBalance;
                 schedule.add(row);
@@ -96,7 +153,6 @@ public class ScheduleGenerator {
             // ================== GRACIA PARCIAL ==================
         } else if ("PARCIAL".equals(graceType)) {
 
-            // primeros meses solo interés, luego francés normal
             int nEffective = n - graceMonths;
             if (nEffective <= 0) {
                 nEffective = n;
@@ -109,8 +165,7 @@ public class ScheduleGenerator {
             for (int period = 1; period <= n; period++) {
                 SimulationResult.ScheduleItem row = new SimulationResult.ScheduleItem();
                 row.setPeriod(period);
-                row.setGraceFlag(period <= graceMonths ? "P" : ""); // P.G.
-
+                row.setGraceFlag(period <= graceMonths ? "P" : "");
                 row.setBeginningBalance(balance.setScale(2, RoundingMode.HALF_UP));
 
                 BigDecimal interest = balance.multiply(monthlyRate)
@@ -119,22 +174,31 @@ public class ScheduleGenerator {
                 BigDecimal installment;
 
                 if (period <= graceMonths) {
-                    // SOLO INTERESES
                     principal = BigDecimal.ZERO;
                     installment = interest;
                 } else {
-                    // Método francés normal
                     principal = monthlyInstallment.subtract(interest)
                             .setScale(2, RoundingMode.HALF_UP);
                     installment = monthlyInstallment;
                 }
 
-                BigDecimal periodCosts = computePeriodicCostsForPeriod(request, period);
-                BigDecimal totalPeriodCost = installment.add(periodCosts);
+                BigDecimal fixedPeriodicCosts = computePeriodicCostsForPeriod(request, period);
+
+                BigDecimal lifeIns = balance.multiply(lifeRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal riskIns = propertyPrice.multiply(riskRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal comm = balance.multiply(commissionRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+
+                BigDecimal totalPeriodCost = installment
+                        .add(fixedPeriodicCosts)
+                        .add(lifeIns)
+                        .add(riskIns)
+                        .add(comm);
 
                 BigDecimal endingBalance = balance.subtract(principal);
 
-                // Ajuste final por redondeo
                 if (period == n && endingBalance.compareTo(BigDecimal.ZERO) != 0) {
                     principal = balance;
                     installment = principal.add(interest);
@@ -144,14 +208,32 @@ public class ScheduleGenerator {
                 totalInterest = totalInterest.add(interest);
                 totalPrincipalAmortization = totalPrincipalAmortization.add(principal);
                 totalPaidInstallments = totalPaidInstallments.add(installment);
-                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
+
+                totalPeriodicCostsReal = totalPeriodicCostsReal
+                        .add(fixedPeriodicCosts)
+                        .add(lifeIns)
+                        .add(riskIns)
+                        .add(comm);
+
+                totalLifeInsurance = totalLifeInsurance.add(lifeIns);
+                totalRiskInsurance = totalRiskInsurance.add(riskIns);
+                totalPeriodicCommissions = totalPeriodicCommissions.add(comm);
+                totalPortes = totalPortes.add(fixedPeriodicCosts);
 
                 row.setInstallment(installment.setScale(2, RoundingMode.HALF_UP));
                 row.setInterest(interest);
                 row.setPrincipal(principal.setScale(2, RoundingMode.HALF_UP));
-                row.setPeriodicCosts(periodCosts.setScale(2, RoundingMode.HALF_UP));
+
+                row.setLifeInsurance(lifeIns);
+                row.setRiskInsurance(riskIns);
+                row.setPeriodicCommission(comm);
+
+                row.setPeriodicCosts(fixedPeriodicCosts.setScale(2, RoundingMode.HALF_UP));
                 row.setTotalPeriodCost(totalPeriodCost.setScale(2, RoundingMode.HALF_UP));
                 row.setEndingBalance(endingBalance.setScale(2, RoundingMode.HALF_UP));
+
+                BigDecimal cashFlow = totalPeriodCost.negate();
+                row.setCashFlow(cashFlow.setScale(2, RoundingMode.HALF_UP));
 
                 balance = endingBalance;
                 schedule.add(row);
@@ -166,47 +248,76 @@ public class ScheduleGenerator {
                 graceMonths = 0;
             }
 
-            // Fase 1: meses de gracia (capitalización de intereses)
+            // Fase 1: meses de gracia
             for (int period = 1; period <= graceMonths; period++) {
                 SimulationResult.ScheduleItem row = new SimulationResult.ScheduleItem();
                 row.setPeriod(period);
-                row.setGraceFlag("T"); // P.G. total
+                row.setGraceFlag("T");
 
                 row.setBeginningBalance(balance.setScale(2, RoundingMode.HALF_UP));
 
                 BigDecimal interest = balance.multiply(monthlyRate)
                         .setScale(2, RoundingMode.HALF_UP);
                 BigDecimal principal = BigDecimal.ZERO;
-                BigDecimal installment = BigDecimal.ZERO; // no se paga cuota
+                BigDecimal installment = BigDecimal.ZERO;
 
-                BigDecimal periodCosts = computePeriodicCostsForPeriod(request, period);
-                BigDecimal totalPeriodCost = installment.add(periodCosts);
+                BigDecimal fixedPeriodicCosts = computePeriodicCostsForPeriod(request, period);
 
-                // Intereses se capitalizan
+                BigDecimal lifeIns = balance.multiply(lifeRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal riskIns = propertyPrice.multiply(riskRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal comm = balance.multiply(commissionRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+
+                BigDecimal totalPeriodCost = installment
+                        .add(fixedPeriodicCosts)
+                        .add(lifeIns)
+                        .add(riskIns)
+                        .add(comm);
+
                 BigDecimal endingBalance = balance.add(interest);
 
                 totalInterest = totalInterest.add(interest);
-                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
+
+                totalPeriodicCostsReal = totalPeriodicCostsReal
+                        .add(fixedPeriodicCosts)
+                        .add(lifeIns)
+                        .add(riskIns)
+                        .add(comm);
+
+                totalLifeInsurance = totalLifeInsurance.add(lifeIns);
+                totalRiskInsurance = totalRiskInsurance.add(riskIns);
+                totalPeriodicCommissions = totalPeriodicCommissions.add(comm);
+                totalPortes = totalPortes.add(fixedPeriodicCosts);
 
                 row.setInstallment(installment.setScale(2, RoundingMode.HALF_UP));
                 row.setInterest(interest);
                 row.setPrincipal(principal.setScale(2, RoundingMode.HALF_UP));
-                row.setPeriodicCosts(periodCosts.setScale(2, RoundingMode.HALF_UP));
+
+                row.setLifeInsurance(lifeIns);
+                row.setRiskInsurance(riskIns);
+                row.setPeriodicCommission(comm);
+
+                row.setPeriodicCosts(fixedPeriodicCosts.setScale(2, RoundingMode.HALF_UP));
                 row.setTotalPeriodCost(totalPeriodCost.setScale(2, RoundingMode.HALF_UP));
                 row.setEndingBalance(endingBalance.setScale(2, RoundingMode.HALF_UP));
+
+                BigDecimal cashFlow = totalPeriodCost.negate();
+                row.setCashFlow(cashFlow.setScale(2, RoundingMode.HALF_UP));
 
                 balance = endingBalance;
                 schedule.add(row);
             }
 
-            // Fase 2: método francés sobre el saldo capitalizado, en nEffective meses
+            // Fase 2: francés sin gracia sobre el saldo capitalizado
             BigDecimal monthlyInstallment = computeInstallment(balance, monthlyRate, nEffective);
             result.setMonthlyInstallment(monthlyInstallment);
 
             for (int p = graceMonths + 1; p <= n; p++) {
                 SimulationResult.ScheduleItem row = new SimulationResult.ScheduleItem();
                 row.setPeriod(p);
-                row.setGraceFlag(""); // ya no está en gracia
+                row.setGraceFlag("");
 
                 row.setBeginningBalance(balance.setScale(2, RoundingMode.HALF_UP));
 
@@ -215,12 +326,23 @@ public class ScheduleGenerator {
                 BigDecimal principal = monthlyInstallment.subtract(interest)
                         .setScale(2, RoundingMode.HALF_UP);
 
-                BigDecimal periodCosts = computePeriodicCostsForPeriod(request, p);
-                BigDecimal totalPeriodCost = monthlyInstallment.add(periodCosts);
+                BigDecimal fixedPeriodicCosts = computePeriodicCostsForPeriod(request, p);
+
+                BigDecimal lifeIns = balance.multiply(lifeRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal riskIns = propertyPrice.multiply(riskRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal comm = balance.multiply(commissionRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+
+                BigDecimal totalPeriodCost = monthlyInstallment
+                        .add(fixedPeriodicCosts)
+                        .add(lifeIns)
+                        .add(riskIns)
+                        .add(comm);
 
                 BigDecimal endingBalance = balance.subtract(principal);
 
-                // Ajuste final por redondeo
                 if (p == n && endingBalance.compareTo(BigDecimal.ZERO) != 0) {
                     principal = balance;
                     interest = monthlyInstallment.subtract(principal)
@@ -231,14 +353,32 @@ public class ScheduleGenerator {
                 totalInterest = totalInterest.add(interest);
                 totalPrincipalAmortization = totalPrincipalAmortization.add(principal);
                 totalPaidInstallments = totalPaidInstallments.add(monthlyInstallment);
-                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
+
+                totalPeriodicCostsReal = totalPeriodicCostsReal
+                        .add(fixedPeriodicCosts)
+                        .add(lifeIns)
+                        .add(riskIns)
+                        .add(comm);
+
+                totalLifeInsurance = totalLifeInsurance.add(lifeIns);
+                totalRiskInsurance = totalRiskInsurance.add(riskIns);
+                totalPeriodicCommissions = totalPeriodicCommissions.add(comm);
+                totalPortes = totalPortes.add(fixedPeriodicCosts);
 
                 row.setInstallment(monthlyInstallment.setScale(2, RoundingMode.HALF_UP));
                 row.setInterest(interest);
                 row.setPrincipal(principal.setScale(2, RoundingMode.HALF_UP));
-                row.setPeriodicCosts(periodCosts.setScale(2, RoundingMode.HALF_UP));
+
+                row.setLifeInsurance(lifeIns);
+                row.setRiskInsurance(riskIns);
+                row.setPeriodicCommission(comm);
+
+                row.setPeriodicCosts(fixedPeriodicCosts.setScale(2, RoundingMode.HALF_UP));
                 row.setTotalPeriodCost(totalPeriodCost.setScale(2, RoundingMode.HALF_UP));
                 row.setEndingBalance(endingBalance.setScale(2, RoundingMode.HALF_UP));
+
+                BigDecimal cashFlow = totalPeriodCost.negate();
+                row.setCashFlow(cashFlow.setScale(2, RoundingMode.HALF_UP));
 
                 balance = endingBalance;
                 schedule.add(row);
@@ -253,7 +393,7 @@ public class ScheduleGenerator {
             for (int period = 1; period <= n; period++) {
                 SimulationResult.ScheduleItem row = new SimulationResult.ScheduleItem();
                 row.setPeriod(period);
-                row.setGraceFlag(""); // lo tratamos como sin gracia
+                row.setGraceFlag("");
 
                 row.setBeginningBalance(balance.setScale(2, RoundingMode.HALF_UP));
 
@@ -262,12 +402,23 @@ public class ScheduleGenerator {
                 BigDecimal principal = monthlyInstallment.subtract(interest)
                         .setScale(2, RoundingMode.HALF_UP);
 
-                BigDecimal periodCosts = computePeriodicCostsForPeriod(request, period);
-                BigDecimal totalPeriodCost = monthlyInstallment.add(periodCosts);
+                BigDecimal fixedPeriodicCosts = computePeriodicCostsForPeriod(request, period);
+
+                BigDecimal lifeIns = balance.multiply(lifeRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal riskIns = propertyPrice.multiply(riskRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal comm = balance.multiply(commissionRate)
+                        .setScale(2, RoundingMode.HALF_UP);
+
+                BigDecimal totalPeriodCost = monthlyInstallment
+                        .add(fixedPeriodicCosts)
+                        .add(lifeIns)
+                        .add(riskIns)
+                        .add(comm);
 
                 BigDecimal endingBalance = balance.subtract(principal);
 
-                // Ajuste final por redondeo
                 if (period == n && endingBalance.compareTo(BigDecimal.ZERO) != 0) {
                     principal = balance;
                     interest = monthlyInstallment.subtract(principal)
@@ -278,14 +429,32 @@ public class ScheduleGenerator {
                 totalInterest = totalInterest.add(interest);
                 totalPrincipalAmortization = totalPrincipalAmortization.add(principal);
                 totalPaidInstallments = totalPaidInstallments.add(monthlyInstallment);
-                totalPeriodicCostsReal = totalPeriodicCostsReal.add(periodCosts);
+
+                totalPeriodicCostsReal = totalPeriodicCostsReal
+                        .add(fixedPeriodicCosts)
+                        .add(lifeIns)
+                        .add(riskIns)
+                        .add(comm);
+
+                totalLifeInsurance = totalLifeInsurance.add(lifeIns);
+                totalRiskInsurance = totalRiskInsurance.add(riskIns);
+                totalPeriodicCommissions = totalPeriodicCommissions.add(comm);
+                totalPortes = totalPortes.add(fixedPeriodicCosts);
 
                 row.setInstallment(monthlyInstallment.setScale(2, RoundingMode.HALF_UP));
                 row.setInterest(interest);
                 row.setPrincipal(principal.setScale(2, RoundingMode.HALF_UP));
-                row.setPeriodicCosts(periodCosts.setScale(2, RoundingMode.HALF_UP));
+
+                row.setLifeInsurance(lifeIns);
+                row.setRiskInsurance(riskIns);
+                row.setPeriodicCommission(comm);
+
+                row.setPeriodicCosts(fixedPeriodicCosts.setScale(2, RoundingMode.HALF_UP));
                 row.setTotalPeriodCost(totalPeriodCost.setScale(2, RoundingMode.HALF_UP));
                 row.setEndingBalance(endingBalance.setScale(2, RoundingMode.HALF_UP));
+
+                BigDecimal cashFlow = totalPeriodCost.negate();
+                row.setCashFlow(cashFlow.setScale(2, RoundingMode.HALF_UP));
 
                 balance = endingBalance;
                 schedule.add(row);
@@ -305,34 +474,23 @@ public class ScheduleGenerator {
                 .add(totalInitialCosts);
 
         result.setTotalCost(totalCost.setScale(2, RoundingMode.HALF_UP));
+
+        result.setTotalLifeInsurance(totalLifeInsurance.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalRiskInsurance(totalRiskInsurance.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalPeriodicCommissions(totalPeriodicCommissions.setScale(2, RoundingMode.HALF_UP));
+        result.setTotalPortes(totalPortes.setScale(2, RoundingMode.HALF_UP));
     }
 
-    private int computeGraceMonths(SimulationRequest request, int termMonths) {
-        String graceType = request.getGraceType();
-        if (graceType == null || graceType.equalsIgnoreCase("NINGUNA")) return 0;
-
-        String termDaysStr = request.getTerm(); // días de gracia
-        if (termDaysStr == null) return 0;
-
-        try {
-            int days = Integer.parseInt(termDaysStr.trim());
-            if (days <= 0) return 0;
-
-            // Aproximamos meses de gracia como ceil(días / 30)
-            int months = (int) Math.ceil(days / 30.0);
-            if (months > termMonths) months = termMonths;
-            return months;
-        } catch (NumberFormatException e) {
-            return 0;
-        }
-    }
+    // OJO: ya no existe computeGraceMonths, lo eliminamos
 
     private BigDecimal computePeriodicCostsForPeriod(SimulationRequest request, int period) {
         BigDecimal periodCosts = BigDecimal.ZERO;
 
         if (request.getCosts() != null) {
             for (SimulationRequest.CostItem item : request.getCosts()) {
-                if (item.getType() == CostType.PERIODIC && item.getAmount() != null) {
+                if (item.getType() == CostType.PERIODIC
+                        && item.getCalcMode() == SimulationRequest.CostCalcMode.FIXED_AMOUNT
+                        && item.getAmount() != null) {
                     Integer pn = item.getPeriodNumber();
                     if (pn == null || pn.equals(period)) {
                         periodCosts = periodCosts.add(item.getAmount());
@@ -343,9 +501,21 @@ public class ScheduleGenerator {
         return periodCosts;
     }
 
+    private BigDecimal getPeriodicCommissionRate(SimulationRequest request) {
+        if (request.getCosts() == null) return BigDecimal.ZERO;
+
+        return request.getCosts().stream()
+                .filter(c -> c.getCode() != null
+                        && c.getCode().equalsIgnoreCase("COMISION_PERIODICA"))
+                .filter(c -> c.getCalcMode() == SimulationRequest.CostCalcMode.PERCENTAGE)
+                .map(c -> nvl(c.getAmount())
+                        .divide(BigDecimal.valueOf(100), 10, RoundingMode.HALF_UP))
+                .findFirst()
+                .orElse(BigDecimal.ZERO);
+    }
+
     private BigDecimal computeInstallment(BigDecimal loanAmount, BigDecimal monthlyRate, int n) {
         if (monthlyRate == null || monthlyRate.compareTo(BigDecimal.ZERO) == 0) {
-            // Si la tasa es 0, cuota = capital / n
             return loanAmount
                     .divide(BigDecimal.valueOf(n), 2, RoundingMode.HALF_UP);
         }

@@ -2,6 +2,7 @@ package com.firststudent.platform.viviendasmartbackend.property.infrastructure.p
 
 import java.util.List;
 
+import com.firststudent.platform.viviendasmartbackend.simulator.domain.model.aggregates.Simulation;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.firststudent.platform.viviendasmartbackend.property.domain.model.aggregates.Property;

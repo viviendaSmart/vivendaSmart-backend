@@ -11,40 +11,32 @@ import java.util.List;
 @Setter
 public class SimulationRequest {
 
-    // IDs básicos
     private Long clientId;
     private Long propertyId;
+    private Long userId;
 
-    // Parámetros del crédito (derivados de config + lo que ajuste el usuario)
-    private BigDecimal initialPayment;   // cuota inicial en %
-    private Integer termYears;          // Numero de años
-    private Integer frequency;          //Frecuencia de pago
+    // Parámetros variables del crédito
+    private BigDecimal initialPayment;   // % inicial
+    private Integer termYears;           // años de plazo
+    private Integer frequency;          // días (30, 60, 90)
 
-    // Tasa del préstamo
-    private BigDecimal rate;             // valor de la tasa (ej. 0.095 para 9.5%)
-    private String rateType;             // "TEA", "TNA", etc.
+    // COK (no está en Config, así que lo dejas aquí)
+    private BigDecimal cokRate;
+    private String cokRateType;
 
-    // Tasa de descuento (COK)
-    private BigDecimal cokRate;          // valor del COK (ej. 0.05 para 5%)
-    private String cokRateType;          // tipo de COK: "TEA", "TNA", "TEM", etc.
+    private String bonusType;           // AVN/CSP/MV
 
-    private String exchange;             // "PEN", "USD", etc.
-    private String graceType;            // Tipo de periodo de gracia
-    private String term;                 // Días de gracia
-    private String bonusType;            // "AVN", "CSP", "MV" o null si no aplica
-
-    // Lista de costos de esta simulación
     private List<CostItem> costs;
 
     public enum CostCalcMode { FIXED_AMOUNT, PERCENTAGE }
 
-    @Getter
-    @Setter
+    @Getter @Setter
     public static class CostItem {
-        private CostType type;           // INITIAL o PERIODIC
-        private String code;             // "NOTARIAL", "REGISTRAL", "DESGRAVAMEN", etc.
-        private CostCalcMode calcMode;   // FIXED_AMOUNT o PERCENTAGE
-        private BigDecimal amount;       // soles o decimal (%), según calcMode
-        private Integer periodNumber;    // null = todos los periodos (para PERIODIC)
+        private CostType type;
+        private String code;
+        private CostCalcMode calcMode;
+        private BigDecimal amount;
+        private Integer periodNumber;
     }
 }
+

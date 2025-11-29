@@ -10,6 +10,9 @@ import java.util.List;
 @Setter
 public class SimulationResult {
 
+    // Moneda en la que están expresados todos los montos ("PEN" o "USD")
+    private String currency;
+
     // ====== Bloque: del financiamiento  ======
 
     // Saldo a financiar del activo = Precio - Precio*%Inicial - Valor BBP
@@ -21,7 +24,7 @@ public class SimulationResult {
     // Monto del préstamo = financedBalance + costos iniciales financiados
     private BigDecimal loanAmount;
 
-    // Tasa efectiva por periodo del préstamo (en tu caso, mensual)
+    // Tasa efectiva por periodo del préstamo
     private BigDecimal monthlyRate;
 
     // Cuota fija del método francés (cuando aplica)
@@ -63,10 +66,11 @@ public class SimulationResult {
     // Totales agregados de costos
     private BigDecimal totalInitialCosts;         // suma de costos tipo INITIAL
     private BigDecimal totalPeriodicCosts;        // suma real de TODOS los PERIODIC
-    // Costo total de la operación (lo que “sale del bolsillo” del cliente)
-    // = totalAmountPaid + totalPeriodicCosts + totalInitialCosts
+
+    // Costo total de la operación
     private BigDecimal totalCost;
 
+    private BigDecimal propertyPrice; // Precio de la propiedad
 
     // ====== Bloque: indicadores de rentabilidad ======
 
@@ -93,13 +97,18 @@ public class SimulationResult {
         private Integer period;            // Nº
         private String graceFlag;          // P.G. ("T", "P" o "")
 
-        private BigDecimal beginningBalance; // Saldo Inicial
-        private BigDecimal installment;      // Cuota
-        private BigDecimal interest;         // Interés
-        private BigDecimal principal;        // Amort.
-        private BigDecimal periodicCosts;    // (por ahora la suma de todos los costos)
-        private BigDecimal totalPeriodCost;  // Cuota + costos
-        private BigDecimal endingBalance;    // Saldo Final
+        private BigDecimal beginningBalance;    // Saldo Inicial
+        private BigDecimal installment;         // Cuota
+        private BigDecimal interest;            // Interés
+        private BigDecimal principal;           // Amort.
+        private BigDecimal cashFlow;            // Flujo
 
+        private BigDecimal lifeInsurance;       // Seguro de desgravamen del período
+        private BigDecimal riskInsurance;       // Seguro de riesgo del período
+        private BigDecimal periodicCommission;  // Comisión periódica del período
+
+        private BigDecimal periodicCosts;       // Otros costos periódicos fijos (monto fijo)
+        private BigDecimal totalPeriodCost;     // Cuota + todos los costos
+        private BigDecimal endingBalance;       // Saldo Final
     }
 }
