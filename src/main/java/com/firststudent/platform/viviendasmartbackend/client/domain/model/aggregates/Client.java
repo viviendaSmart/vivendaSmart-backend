@@ -57,11 +57,9 @@ public class Client extends AuditableAbstractAggregateRoot<Client> {
     @Column(nullable = false)
     private Boolean credithistory;
 
-
     @NotNull
     @Column(nullable = false)
     private Boolean support;
-
 
     @NotBlank
     @Size(max = 255)
