@@ -75,6 +75,7 @@ public class Simulation {
     private BigDecimal loanAmount;
 
     // Tasa efectiva por periodo
+    @Column(precision = 18, scale = 10)
     private BigDecimal periodRate;
 
     // Cuota fija
