@@ -1,6 +1,6 @@
 package com.firststudent.platform.viviendasmartbackend.simulator.domain.model.aggregates;
 
-import com.firststudent.platform.viviendasmartbackend.cost.domain.model.valueobjects.CostType;
+import com.firststudent.platform.viviendasmartbackend.simulator.domain.model.valueobjects.CostType;
 import com.firststudent.platform.viviendasmartbackend.simulator.domain.model.valueobjects.CostCalcMode;
 import jakarta.persistence.*;
 import lombok.Getter;

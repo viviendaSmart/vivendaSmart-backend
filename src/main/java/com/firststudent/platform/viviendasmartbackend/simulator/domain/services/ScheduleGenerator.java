@@ -1,6 +1,6 @@
 package com.firststudent.platform.viviendasmartbackend.simulator.domain.services;
 
-import com.firststudent.platform.viviendasmartbackend.cost.domain.model.valueobjects.CostType;
+import com.firststudent.platform.viviendasmartbackend.simulator.domain.model.valueobjects.CostType;
 import com.firststudent.platform.viviendasmartbackend.simulator.interfaces.rest.resources.SimulationRequest;
 import com.firststudent.platform.viviendasmartbackend.simulator.interfaces.rest.resources.SimulationResult;
 import org.springframework.stereotype.Service;
