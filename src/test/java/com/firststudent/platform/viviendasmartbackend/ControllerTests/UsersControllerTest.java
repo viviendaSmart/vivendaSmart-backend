@@ -79,7 +79,6 @@ class UsersControllerTest {
     @Test
     void signIn_ShouldReturnOkWithToken() throws Exception {
         // Arrange
-        String email = "admin@f1ntrack.com";
         String signInJsonPayload = """
                 {
                     "email": "admin@f1ntrack.com",
