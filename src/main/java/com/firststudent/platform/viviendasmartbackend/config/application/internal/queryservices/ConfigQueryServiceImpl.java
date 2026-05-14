@@ -17,5 +17,5 @@ public class ConfigQueryServiceImpl implements ConfigQueryService {
     }
 
     @Override
-    public Optional<Config> getByUserId(Long userId) { return configRepository.findByUserId(userId);}
+    public Optional<Config> getByUserId(Long userId) { return configRepository.findByUserIdAndDeletedFalse(userId);}
 }

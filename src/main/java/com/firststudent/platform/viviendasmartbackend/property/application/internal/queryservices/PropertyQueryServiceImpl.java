@@ -20,17 +20,17 @@ public class PropertyQueryServiceImpl implements PropertyQueryService {
 
     @Override
     public List<Property> getAll() {
-        return propertyRepository.findAll();
+        return propertyRepository.findAllByDeletedFalse();
     }
 
     @Override
     public Optional<Property> getById(Long id) {
-        return propertyRepository.findById(id);
+        return propertyRepository.findByIdAndDeletedFalse(id);
     }
 
     @Override
     public List<Property> getByOwnerId(Long ownerId) {
-        return propertyRepository.findByOwnerId(ownerId);
+        return propertyRepository.findByOwnerIdAndDeletedFalse(ownerId);
     }
 }
 

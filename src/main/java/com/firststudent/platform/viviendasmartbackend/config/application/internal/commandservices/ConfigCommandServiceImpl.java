@@ -29,7 +29,7 @@ public class ConfigCommandServiceImpl implements ConfigCommandService {
     @Override
     @Transactional
     public Optional<Config> update(Long configId, BigDecimal rate, RateType rateType, Exchange exchange, GraceType termtype, Integer term) {
-        return configRepository.findById(configId).map(existing -> {
+        return configRepository.findByIdAndDeletedFalse(configId).map(existing -> {
             existing.updateDetails(rate, rateType, exchange, termtype, term);
             return configRepository.save(existing);
         });
@@ -38,6 +38,9 @@ public class ConfigCommandServiceImpl implements ConfigCommandService {
     @Override
     @Transactional
     public void delete(Long configId) {
-        configRepository.deleteById(configId);
+        configRepository.findByIdAndDeletedFalse(configId).ifPresent(config -> {
+            config.softDelete();
+            configRepository.save(config);
+        });
     }
 }

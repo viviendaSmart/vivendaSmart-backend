@@ -7,5 +7,6 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ConfigRepository extends JpaRepository<Config, Long> {
-    Optional<Config> findByUserId(Long userId);
+    Optional<Config> findByUserIdAndDeletedFalse(Long userId);
+    Optional<Config> findByIdAndDeletedFalse(Long id);
 }

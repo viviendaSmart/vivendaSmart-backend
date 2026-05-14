@@ -41,6 +41,9 @@ public class Property extends AuditableAbstractAggregateRoot<Property> {
     @Column(nullable = false)
     private Long ownerId;
 
+    @Column(nullable = false)
+    private boolean deleted = false;
+
     protected Property() {
     }
 
@@ -65,5 +68,9 @@ public class Property extends AuditableAbstractAggregateRoot<Property> {
         if (photo != null && !photo.isBlank()) {
             this.photo = photo;
         }
+    }
+
+    public void softDelete() {
+        this.deleted = true;
     }
 }

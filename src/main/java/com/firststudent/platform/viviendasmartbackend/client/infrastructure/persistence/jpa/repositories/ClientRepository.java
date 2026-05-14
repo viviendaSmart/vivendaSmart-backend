@@ -8,7 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.firststudent.platform.viviendasmartbackend.client.domain.model.aggregates.Client;
 
 public interface ClientRepository extends JpaRepository<Client, Long> {
-    Optional<Client> findByDni(String dni);
-    List<Client> findByUserId(Long userId);
+    Optional<Client> findByDniAndDeletedFalse(String dni);
+    List<Client> findByUserIdAndDeletedFalse(Long userId);
+    List<Client> findAllByDeletedFalse();
+    Optional<Client> findByIdAndDeletedFalse(Long id);
 }
 

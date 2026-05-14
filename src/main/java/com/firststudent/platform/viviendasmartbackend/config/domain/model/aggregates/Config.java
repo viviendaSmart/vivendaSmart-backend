@@ -35,6 +35,9 @@ public class Config extends AuditableAbstractAggregateRoot<Config> {
     @Column(nullable = false)
     private Long userId;
 
+    @Column(nullable = false)
+    private boolean deleted = false;
+
     protected Config() {}
     public Config(BigDecimal rate, RateType rateType, Exchange exchange, GraceType graceType, Integer term, Long userId) {
         this.rate = rate;
@@ -60,5 +63,9 @@ public class Config extends AuditableAbstractAggregateRoot<Config> {
         if (term.compareTo(0) > 0) {
             this.term = term;
         }
+    }
+
+    public void softDelete() {
+        this.deleted = true;
     }
 }

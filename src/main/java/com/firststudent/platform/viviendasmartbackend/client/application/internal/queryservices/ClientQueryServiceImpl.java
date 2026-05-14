@@ -20,22 +20,22 @@ public class ClientQueryServiceImpl implements ClientQueryService {
 
     @Override
     public List<Client> getAll() {
-        return clientRepository.findAll();
+        return clientRepository.findAllByDeletedFalse();
     }
 
     @Override
     public Optional<Client> getById(Long id) {
-        return clientRepository.findById(id);
+        return clientRepository.findByIdAndDeletedFalse(id);
     }
 
     @Override
     public Optional<Client> getByDni(String dni) {
-        return clientRepository.findByDni(dni);
+        return clientRepository.findByDniAndDeletedFalse(dni);
     }
 
     @Override
     public List<Client> getByUserId(Long userId) {
-        return clientRepository.findByUserId(userId);
+        return clientRepository.findByUserIdAndDeletedFalse(userId);
     }
 }
 

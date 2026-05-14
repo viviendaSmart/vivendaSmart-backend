@@ -29,7 +29,7 @@ public class PropertyCommandServiceImpl implements PropertyCommandService {
     @Override
     @Transactional
     public Optional<Property> update(Long propertyId, String address, BigDecimal price, BigDecimal size, String photo) {
-        return propertyRepository.findById(propertyId).map(existing -> {
+        return propertyRepository.findByIdAndDeletedFalse(propertyId).map(existing -> {
             existing.updateDetails(address, price, size, photo);
             return propertyRepository.save(existing);
         });
@@ -38,7 +38,10 @@ public class PropertyCommandServiceImpl implements PropertyCommandService {
     @Override
     @Transactional
     public void delete(Long propertyId) {
-        propertyRepository.deleteById(propertyId);
+        propertyRepository.findByIdAndDeletedFalse(propertyId).ifPresent(property -> {
+            property.softDelete();
+            propertyRepository.save(property);
+        });
     }
 }
 

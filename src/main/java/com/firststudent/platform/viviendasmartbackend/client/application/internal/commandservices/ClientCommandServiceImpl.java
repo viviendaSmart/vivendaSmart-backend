@@ -33,7 +33,7 @@ public class ClientCommandServiceImpl implements ClientCommandService {
     @Transactional
     public Optional<Client> update(Long clientId, BigDecimal monthlyIncome, String ocupation,  String name, String surname, String address,
                                    String business, String earningtype, Boolean credithistory, Boolean support, MaritalStatus maritalStatus, String phoneNumber) {
-        return clientRepository.findById(clientId).map(existing -> {
+        return clientRepository.findByIdAndDeletedFalse(clientId).map(existing -> {
             existing.updateDetails(monthlyIncome, ocupation, name, surname, address, business,earningtype,credithistory,support,maritalStatus, phoneNumber);
             return clientRepository.save(existing);
         });
@@ -42,7 +42,10 @@ public class ClientCommandServiceImpl implements ClientCommandService {
     @Override
     @Transactional
     public void delete(Long clientId) {
-        clientRepository.deleteById(clientId);
+        clientRepository.findByIdAndDeletedFalse(clientId).ifPresent(client -> {
+            client.softDelete();
+            clientRepository.save(client);
+        });
     }
 }
 

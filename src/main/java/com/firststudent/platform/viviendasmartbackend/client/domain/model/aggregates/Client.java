@@ -80,6 +80,9 @@ public class Client extends AuditableAbstractAggregateRoot<Client> {
     @Column(nullable = false)
     private Long userId;
 
+    @Column(nullable = false)
+    private boolean deleted = false;
+
     protected Client() {
     }
 
@@ -149,6 +152,10 @@ public class Client extends AuditableAbstractAggregateRoot<Client> {
         if (phoneNumber != null && !phoneNumber.isBlank()) {
             this.phoneNumber = phoneNumber;
         }
+    }
+
+    public void softDelete() {
+        this.deleted = true;
     }
 }
 
