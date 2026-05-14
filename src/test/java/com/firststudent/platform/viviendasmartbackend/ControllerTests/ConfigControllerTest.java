@@ -149,5 +149,6 @@ class ConfigControllerTest {
         mockMvc.perform(delete("/api/v1/config/{id}", configId))
                 .andExpect(status().isNoContent());
     }
+
 }
 

@@ -61,10 +61,8 @@ class PropertyControllerTest {
                 1L
         );
 
-        // Creamos un mock de Property para evitar el error del constructor protegido
         Property mockProperty = mock(Property.class);
 
-        // Usamos any(BigDecimal.class) para coincidir con la interfaz
         when(commandService.create(anyString(), any(BigDecimal.class), any(BigDecimal.class), anyString(), anyLong()))
                 .thenReturn(mockProperty);
 
@@ -126,7 +124,6 @@ class PropertyControllerTest {
         );
         Property updatedProperty = mock(Property.class);
 
-        // Usamos any(BigDecimal.class)
         when(commandService.update(anyLong(), anyString(), any(BigDecimal.class), any(BigDecimal.class), anyString()))
                 .thenReturn(Optional.of(updatedProperty));
 

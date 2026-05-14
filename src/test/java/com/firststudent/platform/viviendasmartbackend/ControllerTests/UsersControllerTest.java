@@ -52,14 +52,12 @@ class UsersControllerTest {
     @MockitoBean
     private RoleValidationService roleValidationService;
 
-    // --- Mock solicitado para evitar errores de contexto de base de datos ---
     @MockitoBean
     private JpaMetamodelMappingContext jpaMappingContext;
 
     @Test
     void signUp_ShouldReturnCreated() throws Exception {
         // Arrange
-        // El JSON ahora coincide exactamente con los campos de SignUpResource
         String signUpJsonPayload = """
                 {
                     "email": "test@f1ntrack.com",
@@ -90,14 +88,11 @@ class UsersControllerTest {
                 """;
 
         User mockUser = mock(User.class);
-        // Preparamos el mock para que el Assembler no falle al mapearlo
         when(mockUser.getId()).thenReturn(1L);
 
-        // Simulamos que el query service encuentra al usuario
         when(userQueryService.handle(any(GetUserByEmailQuery.class)))
                 .thenReturn(Optional.of(mockUser));
 
-        // Simulamos la generación del token
         String fakeToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.fakeToken.Signature";
         when(userCommandService.generateTokenForUser(any(User.class)))
                 .thenReturn(fakeToken);
@@ -161,7 +156,6 @@ class UsersControllerTest {
 
         Roles[] mockRolesArray = new Roles[] { Roles.PROPERTY_MANAGER, Roles.FINANCIAL_ADVISOR };
 
-        // Ahora los tipos coinciden perfectamente: un Roles[]
         when(roleValidationService.getAvailableRolesForRegistration()).thenReturn(mockRolesArray);
 
         // Act & Assert

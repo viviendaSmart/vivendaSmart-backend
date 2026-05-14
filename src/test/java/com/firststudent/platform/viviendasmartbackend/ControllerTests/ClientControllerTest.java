@@ -72,7 +72,6 @@ class ClientControllerTest {
 
         Client mockClient = mock(Client.class);
 
-        // Usamos any() 13 veces para atrapar cualquier parámetro que el controller pase al service
         when(commandService.create(
                 any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
         )).thenReturn(mockClient);
@@ -165,7 +164,6 @@ class ClientControllerTest {
 
         Client updatedClient = mock(Client.class);
 
-        // El update recibe el id (Long) y 11 parámetros (no recibe el userId)
         when(commandService.update(
                 anyLong(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
         )).thenReturn(Optional.of(updatedClient));
