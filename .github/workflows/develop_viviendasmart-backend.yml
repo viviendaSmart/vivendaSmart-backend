@@ -1,7 +1,7 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: Build and deploy JAR app to Azure Web App - viviendasmart-backend
+name: Build and deploy JAR app to Azure Web App - viviendaSmart-backend
 
 on:
   push:
@@ -49,15 +49,15 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_D5B48A8ED5CB434CB8F221D800E4791D }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_176084430D994E198A1FCBBFE4DE9F73 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_8581B735C7D0487C9853FB291F65FA1D }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_875EF9AE60234B24A5332BFE527AA906 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_E6AAEA2CDE564DB48FD497078EEB35F5 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_3FD3EECA027F4C6280DDC653C4C46F80 }}
 
       - name: Deploy to Azure Web App
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
         with:
-          app-name: 'viviendasmart-backend'
+          app-name: 'viviendaSmart-backend'
           slot-name: 'Production'
           package: '*.jar'
           
