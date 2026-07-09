@@ -75,7 +75,7 @@ public class WebSecurityConfiguration {
         http
                 .cors(cors -> cors.configurationSource(request -> {
                     var corsConfig = new CorsConfiguration();
-                    corsConfig.setAllowedOrigins(List.of("http://localhost:4200", "https://purple-river-0ad475110.7.azurestaticapps.net"));
+                    corsConfig.setAllowedOrigins(List.of("http://localhost:4200", "https://purple-river-0ad475110.7.azurestaticapps.net", "https://vivienda-smart-frontend-jfj1t52i7-rafas-projects-b94302ce.vercel.app"));
                     corsConfig.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
                     corsConfig.setAllowedHeaders(List.of("*"));
                     corsConfig.setAllowCredentials(true);
