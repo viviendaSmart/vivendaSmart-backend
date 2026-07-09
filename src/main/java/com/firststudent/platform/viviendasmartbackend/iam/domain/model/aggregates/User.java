@@ -6,11 +6,10 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
-/** 
- * User aggregate root for IAM context
+/** * User aggregate root for IAM context
  * This class represents the aggregate root for the User entity with multitenancy support.
  *
  * @see AuditableAbstractAggregateRoot
@@ -42,9 +41,10 @@ public class User extends AuditableAbstractAggregateRoot<User> {
     @JoinTable(name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),
             inverseJoinColumns = @JoinColumn(name = "role_id"))
-    private List<Role> roles;
+    private Set<Role> roles;
+
     protected User() {
-        this.roles = new ArrayList<>();
+        this.roles = new HashSet<>();
     }
 
     /**
@@ -62,11 +62,11 @@ public class User extends AuditableAbstractAggregateRoot<User> {
         this.firstName = firstName;
         this.lastName = lastName;
         this.isVerified = isVerified;
-        this.roles = new ArrayList<>();
+        this.roles = new HashSet<>();
     }
     
     public void addRole(Role role) {
-        if (role != null && !this.roles.contains(role)) {
+        if (role != null) {
             this.roles.add(role);
         }
     }
